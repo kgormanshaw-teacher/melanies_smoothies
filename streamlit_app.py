@@ -1,4 +1,5 @@
 # Import python packages.
+import os
 import streamlit as st
 from snowflake.snowpark.functions import col
 from snowflake.snowpark import Session
@@ -18,15 +19,26 @@ st.write("The name on your smoothie will be ", name_on_order)
 
 # st.write("Your favourite fruit is:", option)
 
+secrets = st.secrets.get("snowflake", {}) if hasattr(st, "secrets") else {}
 connection_parameters = {
-    "user": st.secrets["snowflake"]["user"],
-    "password": st.secrets["snowflake"]["password"],
-    "account": st.secrets["snowflake"]["account"],
-    "warehouse": st.secrets["snowflake"]["warehouse"],
-    "database": st.secrets["snowflake"]["database"],
-    "schema": st.secrets["snowflake"]["schema"],
-    "role": st.secrets["snowflake"].get("role")
+    "user": secrets.get("user") or os.getenv("SNOWFLAKE_USER"),
+    "password": secrets.get("password") or os.getenv("SNOWFLAKE_PASSWORD"),
+    "account": secrets.get("account") or os.getenv("SNOWFLAKE_ACCOUNT"),
+    "warehouse": secrets.get("warehouse") or os.getenv("SNOWFLAKE_WAREHOUSE"),
+    "database": secrets.get("database") or os.getenv("SNOWFLAKE_DATABASE"),
+    "schema": secrets.get("schema") or os.getenv("SNOWFLAKE_SCHEMA"),
+    "role": secrets.get("role") or os.getenv("SNOWFLAKE_ROLE")
 }
+
+required = ["user", "password", "account", "warehouse", "database", "schema"]
+missing = [k for k in required if not connection_parameters.get(k)]
+if missing:
+    st.error(
+        "Missing Snowflake credentials: {}.\nAdd them to .streamlit/secrets.toml under `[snowflake]`, set Streamlit Cloud secrets, or export corresponding environment variables (SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, ...).".format(
+            ", ".join(missing)
+        )
+    )
+    st.stop()
 
 session = Session.builder.configs(connection_parameters).create()
 my_dataframe = session.table("smoothies.public.fruit_options").select(col('fruit_name')).sort(col('fruit_name'))
