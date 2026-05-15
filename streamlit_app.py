@@ -4,6 +4,9 @@ import streamlit as st
 from snowflake.snowpark.functions import col
 from snowflake.snowpark import Session
 
+st.write("st.secrets keys:", list(st.secrets.keys()) if hasattr(st, "secrets") else "no st.secrets")
+st.stop()
+
 # Write directly to the app.
 st.title(f"Customize Your Smoothie! :cup_with_straw: ")
 st.write(
