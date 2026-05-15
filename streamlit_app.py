@@ -1,11 +1,21 @@
 # Import python packages.
 import os
+import toml
 import streamlit as st
 from snowflake.snowpark.functions import col
 from snowflake.snowpark import Session
 
-st.write("st.secrets keys:", list(st.secrets.keys()) if hasattr(st, "secrets") else "no st.secrets")
-st.stop()
+# Load secrets from st.secrets, or fallback to .streamlit/secrets.toml for local dev
+try:
+    secrets = st.secrets.get("snowflake", {})
+    if not secrets:
+        secrets_file = ".streamlit/secrets.toml"
+        if os.path.exists(secrets_file):
+            config = toml.load(secrets_file)
+            secrets = config.get("snowflake", {})
+except Exception as e:
+    st.error(f"Error loading secrets: {e}")
+    st.stop()
 
 # Write directly to the app.
 st.title(f"Customize Your Smoothie! :cup_with_straw: ")
@@ -22,7 +32,6 @@ st.write("The name on your smoothie will be ", name_on_order)
 
 # st.write("Your favourite fruit is:", option)
 
-secrets = st.secrets.get("snowflake", {}) if hasattr(st, "secrets") else {}
 connection_parameters = {
     "user": secrets.get("user") or os.getenv("SNOWFLAKE_USER"),
     "password": secrets.get("password") or os.getenv("SNOWFLAKE_PASSWORD"),
