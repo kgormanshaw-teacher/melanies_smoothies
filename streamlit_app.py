@@ -9,10 +9,17 @@ from snowflake.snowpark import Session
 try:
     secrets = st.secrets.get("snowflake", {})
     if not secrets:
+        # Try relative path first, then absolute
         secrets_file = ".streamlit/secrets.toml"
+        if not os.path.exists(secrets_file):
+            # Fallback to absolute path based on this script's directory
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            secrets_file = os.path.join(script_dir, ".streamlit", "secrets.toml")
+        
         if os.path.exists(secrets_file):
             config = toml.load(secrets_file)
             secrets = config.get("snowflake", {})
+
 except Exception as e:
     st.error(f"Error loading secrets: {e}")
     st.stop()
