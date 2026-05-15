@@ -2,6 +2,7 @@
 import os
 import toml
 import streamlit as st
+from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col
 from snowflake.snowpark import Session
 
@@ -19,10 +20,36 @@ try:
         if os.path.exists(secrets_file):
             config = toml.load(secrets_file)
             secrets = config.get("snowflake", {})
-
 except Exception as e:
     st.error(f"Error loading secrets: {e}")
     st.stop()
+
+# Create session from secrets (local) or use active session (Snowflake Cloud)
+try:
+    session = get_active_session()
+except:
+    # Fallback: create session from secrets for local development
+    connection_parameters = {
+        "user": secrets.get("user") or os.getenv("SNOWFLAKE_USER"),
+        "password": secrets.get("password") or os.getenv("SNOWFLAKE_PASSWORD"),
+        "account": secrets.get("account") or os.getenv("SNOWFLAKE_ACCOUNT"),
+        "warehouse": secrets.get("warehouse") or os.getenv("SNOWFLAKE_WAREHOUSE"),
+        "database": secrets.get("database") or os.getenv("SNOWFLAKE_DATABASE"),
+        "schema": secrets.get("schema") or os.getenv("SNOWFLAKE_SCHEMA"),
+        "role": secrets.get("role") or os.getenv("SNOWFLAKE_ROLE")
+    }
+    
+    required = ["user", "password", "account", "warehouse", "database", "schema"]
+    missing = [k for k in required if not connection_parameters.get(k)]
+    if missing:
+        st.error(
+            "Missing Snowflake credentials: {}.\nAdd them to .streamlit/secrets.toml under `[snowflake]`, set Streamlit Cloud secrets, or export corresponding environment variables (SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, ...).".format(
+                ", ".join(missing)
+            )
+        )
+        st.stop()
+    
+    session = Session.builder.configs(connection_parameters).create()
 
 # Write directly to the app.
 st.title(f"Customize Your Smoothie! :cup_with_straw: ")
@@ -31,7 +58,7 @@ st.write(
 )
 
 name_on_order = st.text_input("Name on Smoothie")
-st.write("The name on your smoothie will be ", name_on_order)
+st.write("The name on your smoothie wil be ", name_on_order)
 # option = st.selectbox(
 #     "What is your favourite fruit?",
 #     ("Banana", "Strawberries", "Peaches"),
@@ -39,27 +66,7 @@ st.write("The name on your smoothie will be ", name_on_order)
 
 # st.write("Your favourite fruit is:", option)
 
-connection_parameters = {
-    "user": secrets.get("user") or os.getenv("SNOWFLAKE_USER"),
-    "password": secrets.get("password") or os.getenv("SNOWFLAKE_PASSWORD"),
-    "account": secrets.get("account") or os.getenv("SNOWFLAKE_ACCOUNT"),
-    "warehouse": secrets.get("warehouse") or os.getenv("SNOWFLAKE_WAREHOUSE"),
-    "database": secrets.get("database") or os.getenv("SNOWFLAKE_DATABASE"),
-    "schema": secrets.get("schema") or os.getenv("SNOWFLAKE_SCHEMA"),
-    "role": secrets.get("role") or os.getenv("SNOWFLAKE_ROLE")
-}
-
-required = ["user", "password", "account", "warehouse", "database", "schema"]
-missing = [k for k in required if not connection_parameters.get(k)]
-if missing:
-    st.error(
-        "Missing Snowflake credentials: {}.\nAdd them to .streamlit/secrets.toml under `[snowflake]`, set Streamlit Cloud secrets, or export corresponding environment variables (SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, ...).".format(
-            ", ".join(missing)
-        )
-    )
-    st.stop()
-
-session = Session.builder.configs(connection_parameters).create()
+session = get_active_session()
 my_dataframe = session.table("smoothies.public.fruit_options").select(col('fruit_name')).sort(col('fruit_name'))
 #st.dataframe(data=my_dataframe, use_container_width=True)
 
